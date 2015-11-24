@@ -11,31 +11,35 @@
 
 /* Data structures */
 struct AxisValues {
-  int x;
-  int y;
-  int z;
+  long x;
+  long int y;
+  long z;
+};
+
+struct LongAxisValues {
+  long x;
+  long int y;
+  long z;
 };
 
 /* Timers */
-unsigned long time;
-int dt = 100;
+unsigned long initialTime;
 
 /* Gyro */
 L3G gyro;
-int gyroSensitivity = 1;
-float gyroScale = 0.3;
-int gyroAccelerometerCutoff = 2000;
-AxisValues gyroDirection = { 1, 1, -1 };
+// Sensitivity in units of mdps/LSB
+double gyroSensitivity = 8.75;
+// Neutral values in units of LSB (raw reading)
 AxisValues gyroNeutral;
-AxisValues gyroValues;
+// Angle in units of md/s
+LongAxisValues gyroAngle;
 
-int calculateRotationOffset(int value, int neutralValue) {
-  int offset = (int)(gyroScale*(value - neutralValue));
-  Serial.println(offset);
+long calculateAngleOffset(int value, int neutralValue, unsigned long dt) {
+  long offset = (long)(gyroSensitivity*(value - neutralValue)*dt/1000);
   return offset;
 }
 
-int calibrate() {
+void calibrate() {
   ledRed(1);
   ledYellow(1);
   delay(1000);
@@ -48,9 +52,9 @@ int calibrate() {
 
   /* Calibrate gyro */
   gyro.read();
-  gyroNeutral.x = gyro.g.x;
-  gyroNeutral.y = gyro.g.y;
-  gyroNeutral.z = gyro.g.z;
+  gyroNeutral.x = (int)gyro.g.x;
+  gyroNeutral.y = (int)gyro.g.y;
+  gyroNeutral.z = (int)gyro.g.z;
   Serial.print("Gyro Neutral: (");
   Serial.print(gyroNeutral.x);
   Serial.print(", ");
@@ -81,23 +85,27 @@ void setup() {
   calibrate();
 
   // Initial values
-  time = millis();
-  gyro.read();
-  gyroValues.x = (int)gyro.g.x;
-  gyroValues.y = (int)gyro.g.y;
-  gyroValues.z = (int)gyro.g.z;
+  initialTime = millis();
 }
 
 void loop() {
   gyro.read();
 
-  Serial.print("Gyro.g.x:");
-  Serial.print((int)gyro.g.x);
-  Serial.print(", Gyro.g.y:");
-  Serial.print((int)gyro.g.y);
-  Serial.print(", Gyro.g.z:");
-  Serial.print((int)gyro.g.z);
+  unsigned long currentTime = millis();
+  unsigned long dt = currentTime - initialTime;
 
+  gyroAngle.x += calculateAngleOffset((int)gyro.g.x, gyroNeutral.x, dt);
+  gyroAngle.y += calculateAngleOffset((int)gyro.g.y, gyroNeutral.y, dt);
+  gyroAngle.z += calculateAngleOffset((int)gyro.g.z, gyroNeutral.z, dt);
+  
 
+  Serial.print("X:");
+  Serial.print(gyroAngle.x/1000);
+  Serial.print(", Y:");
+  Serial.print(gyroAngle.y/1000);
+  Serial.print(", Z: ");
+  Serial.println(gyroAngle.z/1000);
+
+  initialTime = currentTime;
 }
 
